@@ -1,306 +1,321 @@
-# Architecture & Project Structure
+# Architecture
 
-Feature-based architecture for this **Next.js App Router** application (React 19, Tailwind v4,
-TanStack Query as the intended data layer).
+Next.js 16 App Router · React 19 · TypeScript (strict) · Tailwind v4 · TanStack Query · axios · nuqs
 
-Four layers, each with one responsibility:
-
-| Layer       | Responsibility                      |
-| ----------- | ----------------------------------- |
-| `app/`      | Routing and page composition        |
-| `features/` | User-facing workflows and use cases |
-| `modules/`  | Isolated business domains           |
-| `shared/`   | Generic reusable infrastructure/UI  |
-| `types/`    | Global shared types                 |
-
-The core rule:
-
-```text
-APP  →  FEATURE  →  MODULE  →  SHARED
-```
-
-A **module** answers: _"What business domain does the system provide?"_
-A **feature** answers: _"What can the user accomplish with those domains?"_
-
-Server Components are the default. Client Components are introduced only where interactivity or
-client-side React features are actually needed.
+This document explains **why the folders look like this** and **where new code goes**. Read it once
+before your first PR; after that, section 9 is the part you come back to.
 
 ---
 
-## 1. Project structure
+## 1. The one rule
+
+```text
+app  →  features  →  modules  →  shared
+```
+
+Dependencies point one way. Never sideways, never backwards.
+
+Everything else in this document is a consequence of that rule.
+
+| Layer       | Owns                                              | Answers                                           |
+| ----------- | ------------------------------------------------- | ------------------------------------------------- |
+| `app/`      | URLs, layouts, metadata, composition              | "What does this route render?"                    |
+| `features/` | User-facing workflows across several domains      | "What can the user accomplish?"                   |
+| `modules/`  | One isolated business domain                      | "What business concepts does the system have?"    |
+| `shared/`   | Generic infrastructure and UI, incl. shared types | "What would still make sense in another product?" |
+
+The rule is enforced by ESLint (`import/no-restricted-paths`), not by discipline. A violation fails
+`pnpm lint`, not code review.
+
+### Why one-way
+
+Two-way dependencies are how a codebase stops being deletable. When `booking` imports `payment` and
+`payment` imports `booking`, you can no longer reason about, test, or remove either one alone. The
+cost of the rule is occasional duplication and one extra layer of indirection; the benefit is that
+every module can be understood, tested, and deleted in isolation. That trade is worth making early —
+it is nearly impossible to make later.
+
+---
+
+## 2. Directory map
 
 ```text
 src/
+├── instrumentation.ts          # server boot hook — validates env, wires tracing
 │
-├── app/                        # routing only
+├── app/                        # routing only — no business logic
 │   ├── layout.tsx
-│   ├── providers.tsx           # client providers (QueryClientProvider, theme, ...)
+│   ├── providers.tsx           # the single client boundary at the root
+│   ├── error.tsx               # route error boundary
+│   ├── global-error.tsx        # root-layout error boundary
+│   ├── not-found.tsx
 │   ├── globals.css
-│   ├── (public)/
-│   │   └── page.tsx
+│   ├── api/
+│   │   ├── health/route.ts     # liveness probe
+│   │   └── [...path]/route.ts  # BFF proxy to the backend
+│   ├── (public)/page.tsx
 │   └── (dashboard)/
-│       ├── layout.tsx
-│       └── page.tsx
 │
-├── features/                   # use cases composing multiple domains
-│   ├── trip-booking/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── services/
-│   │   ├── validators/
-│   │   └── types.ts
-│   └── user-dashboard/
-│       └── ...
+├── features/                   # workflows that compose modules
+│   └── <feature>/
+│       ├── components/
+│       ├── hooks/
+│       ├── services/           # orchestration across modules
+│       ├── validators/
+│       ├── search-params.ts    # nuqs parsers for this screen
+│       └── types.ts
 │
-├── modules/                    # isolated business domains
-│   ├── auth/
-│   ├── user/
-│   ├── trip/
-│   ├── booking/
-│   └── payment/
+├── modules/                    # one folder = one business domain
+│   └── <domain>/
+│       ├── components/
+│       ├── services/
+│       │   ├── <domain>.api.ts     # raw HTTP, no React
+│       │   └── <domain>.query.ts   # query keys + queryOptions + mutations
+│       ├── hydrate/
+│       │   └── <domain>.hydrate.ts # server prefetch → dehydrated state
+│       ├── hooks/
+│       ├── validators/
+│       └── types.ts
 │
-├── shared/                     # no business logic
-│   ├── components/
-│   │   ├── ui/                 # Button, Input, Modal, ...
-│   │   └── layout/             # Header, Sidebar, ...
-│   ├── hooks/                  # useDebounce, useMediaQuery, ...
-│   ├── lib/                    # api.ts, queryClient.ts, auth.ts, cookies.ts
+├── shared/                     # zero business knowledge
+│   ├── components/{ui,layout}/
+│   ├── hooks/
+│   ├── lib/                    # api.ts, api.server.ts, query-client.ts,
+│   │                           # search-params.ts, form.ts
 │   ├── utils/
-│   ├── constants/
-│   └── config/
+│   ├── constants/              # site.ts
+│   ├── config/                 # env.ts, env.validate.ts
+│   └── types/                  # api.ts, pagination.ts, env.d.ts
 │
-├── types/                      # global types only
-│   ├── api.ts
-│   ├── pagination.ts
-│   └── index.ts
-│
-├── styles/
-├── tests/
-└── e2e/
+tests/                          # unit tests, mirroring the src/ tree
+├── setup.ts
+├── app/
+└── shared/
+e2e/                            # Playwright specs
 ```
 
-Code is organized by feature/domain — never by global type-based folders such as a single
-top-level `components/`, `services/`, or `hooks/` for the whole app.
+`src/` is production code only — **no test files live there**. `tests/` mirrors the `src/` tree
+(`tests/shared/lib/api.test.ts` covers `src/shared/lib/api.ts`), so the path tells you what a spec
+covers, and shipping code is never interleaved with things that never ship. `e2e/` is Playwright's,
+at the repo root by convention.
+
+Organize by domain, not by file kind. A top-level `components/` or `services/` folder for the whole
+app looks tidy on day one and tells you nothing on day ninety: you can no longer see what the system
+does by listing a directory, and every change touches five folders.
 
 ---
 
-## 2. `app/` — routing & page composition
+## 3. `app/` — routing, and nothing else
 
-`app/` owns routing, layouts, `loading.tsx`, `error.tsx`, metadata (`generateMetadata()`), and
-composing features/modules into pages.
+A `page.tsx` should read like a table of contents. It starts the data and hands it to a component —
+which of the two shapes below you use depends on who owns the data afterwards
+([data-fetching.md](./data-fetching.md)):
 
-**Business logic never lives in `page.tsx`.** A page resolves route params, triggers server-side
-hydration when needed, and renders a feature/module component.
+```tsx
+// Server-driven data: start the requests, don't await, let them stream.
+export default function DashboardPage() {
+  const userPromise = getCurrentUser();
+  const workspacePromise = getWorkspace();
 
-```text
-app/(dashboard)/trips/[id]/page.tsx
-  → hydrateTripDetail(id)          (modules/trip)
-  → <TripBookingScreen id={id} />  (features/trip-booking)
-```
-
-Route groups `(public)` / `(dashboard)` split layouts without adding URL segments.
-
----
-
-## 3. `modules/` — business domains
-
-A module is an isolated business domain: `auth`, `user`, `trip`, `booking`, `payment`.
-
-Each module owns its own components, API calls, query configuration, hydration, hooks, validation
-and types:
-
-```text
-modules/trip/
-├── components/
-├── services/
-│   ├── trip.api.ts       # raw fetchers
-│   └── trip.query.ts     # query keys + query/mutation options
-├── hydrate/
-│   └── trip.hydrate.ts   # server-side prefetch + dehydrate
-├── hooks/
-├── validators/
-└── types.ts
-```
-
-Modules must stay isolated: **a module never imports another module.** If two domains need to work
-together, that coordination belongs in a feature.
-
----
-
-## 4. `features/` — product features / use cases
-
-A feature is a user-facing workflow. Unlike a module, a feature **composes multiple modules**.
-
-```text
-features/trip-booking/
-        ├── modules/trip      → get trip information
-        ├── modules/booking   → create booking
-        └── modules/payment   → process payment
-        → coordinates the complete booking flow
-```
-
-`trip-booking` is not a new business domain — it is a workflow over existing ones.
-
-### Rule: do not duplicate domains inside `features/`
-
-❌ Wrong
-
-```text
-features/
-├── trip/
-├── booking/
-└── payment/
-```
-
-✅ Correct
-
-```text
-modules/               features/
-├── trip/              ├── trip-booking/
-├── booking/           ├── checkout/
-└── payment/           └── trip-search/
-```
-
-A feature also never imports another feature. Shared logic between two features belongs in a
-module (business) or in `shared/` (generic).
-
----
-
-## 5. TanStack Query structure
-
-Each module separates raw API calls, query configuration, and server-side hydration.
-
-### `*.api.ts` — raw fetchers only
-
-```ts
-export const getTripById = async (id: string) => {
-  const response = await api.get(`/trips/${id}`);
-
-  return response.data;
-};
-```
-
-### `*.query.ts` — query keys, query options, mutation options
-
-```ts
-export const qkTrip = {
-  root: ['qk_trip'] as const,
-
-  detail: (id: string) => [...qkTrip.root, 'detail', { id }] as const,
-};
-
-export const tripDetailQueryOptions = (id: string) =>
-  queryOptions({
-    queryKey: qkTrip.detail(id),
-    queryFn: () => getTripById(id),
-  });
-```
-
-### `*.hydrate.ts` — server-side prefetch + dehydrate
-
-```ts
-export async function hydrateTripDetail(id: string) {
-  const queryClient = getQueryClient();
-
-  await queryClient.prefetchQuery(tripDetailQueryOptions(id));
-
-  return dehydrate(queryClient);
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardScreen userPromise={userPromise} workspacePromise={workspacePromise} />
+    </Suspense>
+  );
 }
 ```
 
-The page then wraps its children in `<HydrationBoundary state={...}>`, so Client Components read
-the data from the cache without a second request.
+```tsx
+// Client-managed data: prefetch into the query cache instead.
+export default async function TripDetailPage({ params }: PageProps<'/trips/[id]'>) {
+  const { id } = await params;
 
-> TanStack Query is not installed yet in this boilerplate. When adding it, put the shared
-> `QueryClient` factory in `shared/lib/queryClient.ts` and the provider in `app/providers.tsx`.
+  return (
+    <HydrationBoundary state={await hydrateTripDetail(id)}>
+      <TripBookingScreen tripId={id} />
+    </HydrationBoundary>
+  );
+}
+```
+
+What belongs here: route params, `generateMetadata()`, `loading.tsx`, `error.tsx`, `not-found.tsx`,
+auth redirects, and kicking off data — as promises or as a prefetch.
+
+What does not: data shaping, business rules, form logic, anything you would want to unit-test.
+Pages are the hardest place in the app to test and the easiest to duplicate — keep them thin.
+
+Route groups (`(public)`, `(dashboard)`) exist to give sections different layouts without adding a
+URL segment. Use them for layout boundaries, not as a filing system.
 
 ---
 
-## 6. `shared/` — reusable code
+## 4. `modules/` — business domains
 
-`shared/` holds everything that no business domain owns: UI primitives (`Button`, `Input`,
-`Modal`), layout (`Header`, `Sidebar`), generic hooks (`useDebounce`), the HTTP client, the
-`QueryClient` factory, route constants, and generic utilities.
+A module is a noun the business uses: `auth`, `user`, `trip`, `booking`, `payment`. It owns
+everything about that concept — its API calls, query keys, cache invalidation, validation schemas,
+types, and the components that only make sense for it (`TripCard`, `BookingStatusBadge`).
 
-**`shared/` must not contain business-specific logic** and must not import from `app/`,
-`features/` or `modules/`.
+**A module never imports another module.** This is the constraint that keeps domains from fusing.
+When you feel the pull:
+
+| Situation                                           | Do this                                                          |
+| --------------------------------------------------- | ---------------------------------------------------------------- |
+| `booking` needs trip data to render a summary       | The feature fetches from both and passes props down              |
+| `booking` needs a _shared concept_ (e.g. `Money`)   | Extract it — `shared/` if generic, a new module if it's a domain |
+| `payment` needs to react to a booking being created | The feature orchestrates: create booking, then charge            |
+| Two modules keep needing each other                 | They are one domain. Merge them.                                 |
+
+The last row matters: if the boundary keeps fighting you, the boundary is wrong. Redraw it instead of
+adding an escape hatch.
+
+A module exposes its public surface through the files above; treat deep imports into another team's
+module internals as a smell even where ESLint allows it.
+
+---
+
+## 5. `features/` — use cases
+
+A feature is a verb phrase: `trip-booking`, `trip-search`, `checkout`, `user-dashboard`. It is the
+only layer allowed to know that several domains exist at once.
+
+```text
+features/trip-booking
+  ├─ modules/trip      → read trip details
+  ├─ modules/booking   → create the booking
+  └─ modules/payment   → charge the card
+  └─ its own job: sequencing, rollback, wizard state, the screen itself
+```
+
+### The mistake this layer exists to prevent
+
+```text
+❌ features/trip/  features/booking/  features/payment/
+```
+
+That is just `modules/` with a different name, and it guarantees the same domain gets reimplemented
+in the next feature that needs it. If the folder name is a noun, it belongs in `modules/`.
+
+**A feature never imports another feature.** Two features needing the same logic is a signal, not an
+inconvenience: business logic goes down into a module, generic UI goes into `shared/`.
+
+---
+
+## 6. `shared/` — the "any product" test
+
+Before putting something in `shared/`, ask: _would this still make sense in a completely different
+product?_ `Button`, `useDebounce`, the axios instance, a date formatter — yes. `TripCard`,
+`formatBookingStatus` — no, those are `modules/`.
+
+`shared/` importing from `modules/` or `features/` is the single most common way this architecture
+rots, because it inverts the dependency arrow and silently makes "generic" code product-specific.
+ESLint rejects it.
+
+Current contents worth knowing:
+
+| File                          | Purpose                                                |
+| ----------------------------- | ------------------------------------------------------ |
+| `shared/config/env.ts`        | The only place that reads `process.env`                |
+| `shared/lib/api.ts`           | axios instance + `ApiError`; the transport boundary    |
+| `shared/lib/api.server.ts`    | Server client: forwards cookies, absolute base URL     |
+| `shared/lib/query-client.ts`  | `QueryClient` factory and defaults (server vs browser) |
+| `shared/lib/search-params.ts` | Generic list URL state (`page`, `limit`, `q`, `sort`)  |
+| `shared/lib/form.ts`          | Maps `ApiError.details` onto react-hook-form fields    |
+| `shared/constants/site.ts`    | Product name/description/URL used by metadata          |
+
+See [data-fetching.md](./data-fetching.md) for how these fit together.
 
 ---
 
 ## 7. Types
 
-Two levels:
-
 ```text
-Global / cross-domain type   → src/types/
-Domain-specific type         → modules/<domain>/types.ts
-Feature-specific type        → features/<feature>/types.ts
+Cross-domain / transport   → src/shared/types/            (ApiResponse, Paginated, env.d.ts)
+Domain concept             → modules/<domain>/types.ts
+Screen/workflow shape      → features/<feature>/types.ts
+Component props            → next to the component
 ```
 
-```ts
-// src/types/api.ts
-export type ApiResponse<T> = {
-  data: T;
-  message?: string;
-  error?: string;
-};
-```
+Cross-domain types live under `shared/` because that is exactly what they are: code owned by no
+business domain, usable by any of them. They inherit the `shared/` rule automatically — a type in
+`shared/types/` may not reference a module or feature, and ESLint enforces it through the same zone.
+If a type needs `Trip`, it is not a shared type.
 
-Avoid one large `types.ts` / `interfaces.ts` for the entire application.
+One global `types.ts` for the whole app is an anti-pattern — it becomes a dumping ground nobody dares
+to delete from, and it couples every domain to every other domain through a single import.
 
 ---
 
-## 8. Import dependency rules
+## 8. Server vs Client Components
+
+Server by default. `'use client'` is a boundary, not a file annotation: everything imported below it
+ships to the browser too.
 
 ```text
-app       → features, modules, shared
-features  → modules, shared
-modules   → shared
-shared    → shared only
+page.tsx                    Server  — starts requests, composes
+└── TripSummary             Server  — awaits its own data, pure render
+└── BookingWizard           Client  — useState, event handlers, use(promise)
+    └── DatePicker          Client  (inherited)
 ```
 
-Forbidden:
+Push the directive to the smallest component that needs interactivity. The common failure is a
+`'use client'` at the top of a screen component because one button needs `onClick` — that sends the
+entire subtree, and its dependencies, to the client for nothing.
 
-```text
-module A  → module B          (and the reverse)
-feature A → feature B
-shared    → module / feature
-module    → feature
-any layer → app
-```
+`use(promise)` is a Client Component feature, so the same rule applies to it: pass the promise as
+deep as it goes and unwrap it at the leaf, rather than promoting a whole screen to the client to read
+one value. A Server Component that renders its own data does not need a promise prop at all — it can
+just `await`.
 
-These rules are **enforced by ESLint** (`import/no-restricted-paths` in `eslint.config.mjs`), on
-resolved file paths — so both `@/modules/x` and `../../modules/x` are caught. Zones for
-module/feature isolation are generated from the folders that exist on disk, so a new module needs
-no config change.
-
-Cross-layer imports use the `@/*` alias; relative imports stay inside the same module/feature.
+`app/providers.tsx` is the one deliberate exception: it wraps the whole tree because context
+providers must be client-side. Keep it to providers only.
 
 ---
 
-## 9. Server vs Client Components
+## 9. Where does this go? — the decision table
 
-```text
-Page (Server Component)
- ├── Server Component
- ├── Server Component
- └── Client Component   ← only the interactive leaf
-```
+| You are adding…                       | Location                                                                      |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| A new URL                             | `app/<segment>/page.tsx`                                                      |
+| A business entity + its API/queries   | `modules/<domain>/`                                                           |
+| A screen combining 2+ domains         | `features/<feature>/`                                                         |
+| A screen for exactly one domain       | `modules/<domain>/components/` — no feature needed                            |
+| A generic Button/Input/hook/formatter | `shared/`                                                                     |
+| A type used by 2+ domains             | `src/shared/types/`                                                           |
+| Logic two modules both need           | A new module (business) or `shared/` (generic)                                |
+| Logic two features both need          | A module                                                                      |
+| URL state for a list screen           | `features/<feature>/search-params.ts`, built on `shared/lib/search-params.ts` |
+| Initial, read-once data for a route   | Promise props + `use()` — no query needed ([why](./data-fetching.md))         |
+| Data the client refetches or mutates  | `modules/<domain>/services/*.query.ts` + `hydrate/`                           |
+| A one-off helper used in one file     | That file. Don't pre-abstract.                                                |
 
-Add `'use client'` only for `useState` / `useEffect`, event handlers, browser APIs, or interactive
-UI. Never make a whole page a Client Component because one small part needs interactivity — push
-the directive down to the smallest component that needs it.
+When two answers look equally right, choose the lower layer only if it is genuinely generic;
+otherwise choose the higher one. Promoting code down a layer later is cheap; untangling a
+business-specific "utility" out of `shared/` is not.
 
 ---
 
-## 10. Adding something new — quick decision guide
+## 10. Enforcement
 
-| You are adding…                         | Where it goes                         |
-| --------------------------------------- | ------------------------------------- |
-| A new URL                               | `app/<segment>/page.tsx`              |
-| A new business entity + its API/queries | `modules/<domain>/`                   |
-| A multi-domain user flow                | `features/<feature>/`                 |
-| A generic button/input/hook/util        | `shared/`                             |
-| A type used by 2+ domains               | `src/types/`                          |
-| Logic two modules need                  | A new module, or `shared/` if generic |
-| Logic two features need                 | A module                              |
+`eslint.config.mjs` declares the boundaries as `import/no-restricted-paths` zones. They match on
+**resolved file paths**, so `@/modules/x` and `../../modules/x` are both caught.
+
+Zones for module/feature isolation are generated by reading `src/modules` and `src/features` at
+config load time, so adding `modules/payment` forbids every other module from being imported inside
+it without editing any config. Two consequences worth knowing:
+
+- **`import/no-unresolved` is part of the mechanism, not a nicety.** `no-restricted-paths` silently
+  skips imports the resolver can't resolve — without the companion rule, a broken alias would
+  disable every boundary while lint stayed green. Don't remove one without the other.
+- **The zone list is built when ESLint loads its config.** CI is always correct (fresh process), but
+  your editor's ESLint server keeps the old list until it restarts — a module folder created five
+  minutes ago is unprotected in-editor until then.
+
+```text
+src/shared/lib/format.ts
+  3:1  error  Unexpected path "@/modules/booking/types" imported in restricted zone.
+              shared/ must stay business-agnostic: it cannot import app/, features/ or modules/
+```
+
+If a rule blocks you, it is nearly always pointing at a real modelling problem — re-read section 4
+before reaching for an eslint-disable. When you do need one, put it on the single import line with a
+comment explaining why.

@@ -2,10 +2,10 @@ import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
 import prettier from 'eslint-config-prettier/flat';
+import { defineConfig, globalIgnores } from 'eslint/config';
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
 
@@ -40,11 +40,6 @@ const boundaryZones = [
     target: './src/shared',
     from: ['./src/app', './src/features', './src/modules'],
     message: 'shared/ must stay business-agnostic: it cannot import app/, features/ or modules/.',
-  },
-  {
-    target: './src/types',
-    from: ['./src/app', './src/features', './src/modules', './src/shared'],
-    message: 'src/types holds global types only: it cannot import from a business layer.',
   },
   {
     target: './src/modules',
@@ -93,10 +88,46 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    name: 'project/no-inline-styles',
+    files: ['**/*.tsx'],
+    rules: {
+      // Styling goes through Tailwind classes or globals.css — never a `style`
+      // prop. Inline styles skip the design tokens, can't be overridden by a
+      // stylesheet, and are invisible to the Tailwind class sorter.
+      'react/forbid-dom-props': [
+        'error',
+        {
+          forbid: [
+            {
+              propName: 'style',
+              message: 'Use Tailwind classes or globals.css, not inline styles.',
+            },
+          ],
+        },
+      ],
+      'react/forbid-component-props': [
+        'error',
+        {
+          forbid: [
+            {
+              propName: 'style',
+              message: 'Use Tailwind classes or globals.css, not inline styles.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     name: 'project/architecture-boundaries',
     files: ['src/**/*.{ts,tsx}'],
     rules: {
       'import/no-restricted-paths': ['error', { basePath: rootDir, zones: boundaryZones }],
+      // Load-bearing: `no-restricted-paths` matches on *resolved* paths and
+      // silently skips anything the resolver can't resolve. Without this rule a
+      // broken resolver would disable every boundary above while lint stays
+      // green. Keep the two together.
+      'import/no-unresolved': 'error',
     },
   },
   prettier,

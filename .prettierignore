@@ -6,3 +6,5 @@ coverage
 pnpm-lock.yaml
 next-env.d.ts
 *.min.*
+playwright-report
+test-results
