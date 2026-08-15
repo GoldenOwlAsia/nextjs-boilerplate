@@ -1,7 +1,7 @@
 # nextjs-boilerplate
 
 Next.js 16 (App Router) · React 19 · TypeScript strict · Tailwind v4 · TanStack Query · axios ·
-nuqs · zod + react-hook-form.
+nuqs · zod + react-hook-form · shadcn/ui + cnfast.
 
 Feature-based architecture with layer boundaries enforced by ESLint, a BFF proxy route, boot-time env
 validation, security headers, unit + e2e tests, and CI.
@@ -66,4 +66,5 @@ app → features → modules → shared
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | [Architecture](./docs/architecture.md)   | Deciding where new code goes; module vs feature; Server vs Client                                       |
 | [Data fetching](./docs/data-fetching.md) | Choosing between promise props + `use()` and TanStack Query; API calls, mutations, hydration, URL state |
+| [Styling](./docs/styling.md)             | Writing any UI: `cn()`, class grouping, design tokens, shadcn/ui                                        |
 | [Tooling](./docs/tooling.md)             | TypeScript strict flags, ESLint boundaries, Prettier, testing, CI, env validation                       |

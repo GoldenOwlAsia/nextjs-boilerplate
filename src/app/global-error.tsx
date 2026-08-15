@@ -1,5 +1,8 @@
 'use client';
 
+import { Button } from '@/shared/components/ui/button';
+import { cn } from '@/shared/lib/utils';
+
 import './globals.css';
 
 /**
@@ -8,7 +11,7 @@ import './globals.css';
  * and cannot rely on anything the layout provides — no fonts, no providers.
  *
  * That includes the stylesheet, which is why it is imported here directly rather
- * than inherited. Inline styles are not an option (see docs/tooling.md).
+ * than inherited. Inline styles are not an option (see docs/styling.md).
  */
 export default function GlobalError({
   error,
@@ -19,18 +22,22 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en">
-      <body className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center">
+      <body
+        className={cn(
+          'flex min-h-screen flex-col items-center justify-center',
+          'gap-4 p-8',
+          'text-center',
+        )}
+      >
         <h1 className="text-2xl font-semibold tracking-tight">Application error</h1>
 
-        {error.digest ? <p className="text-sm opacity-60">Reference: {error.digest}</p> : null}
+        {error.digest ? (
+          <p className="text-sm text-muted-foreground">Reference: {error.digest}</p>
+        ) : null}
 
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
-        >
+        <Button type="button" onClick={reset}>
           Try again
-        </button>
+        </Button>
       </body>
     </html>
   );

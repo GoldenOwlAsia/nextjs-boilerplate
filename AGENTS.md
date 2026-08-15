@@ -71,10 +71,36 @@ Cross-layer imports use the `@/*` alias; relative imports stay inside the same m
 - `getQueryClient()` from `@/shared/lib/query-client`; never hoist a `QueryClient` to a module
   constant on the server.
 
-## Code style
+## Styling — read [docs/styling.md](./docs/styling.md) before writing UI
 
 - **No inline styles, ever.** No `style={{...}}` on DOM elements or components — ESLint rejects it.
-  Use Tailwind classes, or `globals.css` for genuinely global rules.
+- **Compose className with `cn()`** from `@/shared/lib/utils` (backed by `cnfast`; use the call
+  form, not the tagged-template form), one argument per concern, in this order: layout → sizing →
+  spacing → typography → visual → state/motion (`hover:`, `focus-visible:`, `transition-*`) →
+  responsive (`sm:` `md:` `lg:`) → conditionals → the `className` prop **last**.
+  Skip unused groups. A single group of 2–3 classes with no override can stay a plain string.
+
+  ```tsx
+  className={cn(
+    'inline-flex items-center gap-2',
+    'px-5 py-2',
+    'text-sm font-medium',
+    'rounded-md bg-primary text-primary-foreground',
+    'transition-colors hover:bg-primary/90',
+    'sm:w-auto',
+    className,
+  )}
+  ```
+
+- **Name a token, never a value**: `bg-primary`, `text-muted-foreground`, `border-border`. Never
+  `bg-zinc-50`, `bg-black/[.06]`, or a hex. Missing token → add it to `globals.css`.
+- UI primitives come from shadcn (`pnpm ui add <component>` → `src/shared/components/ui/`). They are
+  source, not a dependency: edit the variants instead of wrapping them. Use `asChild` rather than
+  restyling a `<Link>`. Icons from `lucide-react`.
+- `shared/components/ui/` must stay business-agnostic; domain UI belongs to its module.
+
+## Code style
+
 - Server Components by default; add `'use client'` only on the smallest interactive component.
 - TypeScript is strict (see [docs/tooling.md](./docs/tooling.md)): no `any`, `import type` for
   type-only imports, index access is `T | undefined`, optional props that accept undefined must say
