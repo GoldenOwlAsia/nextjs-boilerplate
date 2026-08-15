@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# nextjs-boilerplate
 
-## Getting Started
+Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS v4, organized with a
+**feature-based architecture**.
 
-First, run the development server:
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). The home page lives at
+`src/app/(public)/page.tsx`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm dev            # dev server (Turbopack)
+pnpm build          # production build
+pnpm start          # serve the production build
 
-## Learn More
+pnpm typecheck      # tsc --noEmit
+pnpm lint           # eslint
+pnpm lint:fix       # eslint --fix
+pnpm format         # prettier --write .
+pnpm format:check   # prettier --check .
+pnpm check          # typecheck + lint + format:check
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+src/
+├── app/        routing, layouts, page composition
+├── features/   user-facing workflows (compose multiple modules)
+├── modules/    isolated business domains
+├── shared/     generic UI, hooks, lib, utils, constants, config
+├── types/      global shared types
+├── styles/
+├── tests/
+└── e2e/
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Dependency direction — enforced by ESLint:
 
-## Deploy on Vercel
+```text
+app → features → modules → shared
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Docs
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Architecture & project structure](./docs/architecture.md) — layers, module vs feature, TanStack
+  Query layout, import rules, Server vs Client Components.
+- [Tooling](./docs/tooling.md) — TypeScript strict flags, ESLint boundaries, Prettier.
