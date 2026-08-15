@@ -13,7 +13,9 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   ...(isCI ? { workers: 1 } : {}),
-  reporter: isCI ? 'github' : 'list',
+  // `github` annotates the PR diff; `html` is what CI uploads as an artifact.
+  // Using `github` alone means no report is written and the upload step warns.
+  reporter: isCI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
     trace: 'on-first-retry',

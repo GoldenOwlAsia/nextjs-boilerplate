@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "ui": "pnpm dlx shadcn@latest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "format": "prettier --write .",

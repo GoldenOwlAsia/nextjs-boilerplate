@@ -29,8 +29,11 @@ Node 20 reached end of life in April 2026, and it is not merely a policy matter 
 depends on an undici build that needs `webidl.util.markAsUncloneable`, which Node 20 does not have —
 the unit suite fails to start. Run this project on 22.
 
-> `pnpm typecheck` reads generated route types from `.next/types`. After moving or renaming a route,
-> run `pnpm exec next typegen` (or `pnpm build`) if `tsc` complains about a stale `validator.ts`.
+> `pnpm typecheck` runs `next typegen` first, on purpose. `tsconfig.json` includes
+> `.next/types/**/*.ts`, and Next generates the `PageProps` / `LayoutProps` / `RouteContext` globals
+> there — but `.next/` is gitignored, so on a fresh clone or in CI they simply do not exist and
+> `tsc` fails with `Cannot find name 'LayoutProps'`. Generating them is a real prerequisite of type
+> checking, so it belongs in the script rather than in a paragraph someone has to read first.
 
 ## TypeScript
 
