@@ -29,8 +29,11 @@ Node 20 reached end of life in April 2026, and it is not merely a policy matter 
 depends on an undici build that needs `webidl.util.markAsUncloneable`, which Node 20 does not have —
 the unit suite fails to start. Run this project on 22.
 
-> `pnpm typecheck` reads generated route types from `.next/types`. After moving or renaming a route,
-> run `pnpm exec next typegen` (or `pnpm build`) if `tsc` complains about a stale `validator.ts`.
+> `pnpm typecheck` runs `next typegen` first, on purpose. `tsconfig.json` includes
+> `.next/types/**/*.ts`, and Next generates the `PageProps` / `LayoutProps` / `RouteContext` globals
+> there — but `.next/` is gitignored, so on a fresh clone or in CI they simply do not exist and
+> `tsc` fails with `Cannot find name 'LayoutProps'`. Generating them is a real prerequisite of type
+> checking, so it belongs in the script rather than in a paragraph someone has to read first.
 
 ## TypeScript
 
@@ -125,10 +128,17 @@ other third-party packages
 Side-effect imports (`'server-only'`, `./globals.css`) keep their position — order is load-bearing
 for those.
 
-**`prettier-plugin-tailwindcss`** — canonical class order, so class-list diffs stay reviewable. It
-is configured with `tailwindStylesheet: "./src/app/globals.css"`; without that it cannot see the
-Tailwind v4 `@theme` block and silently fails to sort custom utilities. It must stay **last** in the
-plugin array.
+**`prettier-plugin-tailwindcss`** — canonical class order, so class-list diffs stay reviewable.
+Two options carry weight:
+
+- `tailwindStylesheet: "./src/app/globals.css"` — without it the plugin cannot see the Tailwind v4
+  `@theme` block and silently fails to sort custom utilities.
+- `tailwindFunctions: ["cn", "cva"]` — makes it sort inside `cn(...)` and `cva(...)` calls, which is
+  where essentially every class in this codebase lives. It sorts _within_ each argument and leaves
+  the argument grouping alone, which is exactly what the convention in
+  [styling.md](./styling.md#2-group-the-arguments) needs.
+
+It must stay **last** in the plugin array.
 
 Formatting is not a code-review topic here. Turn on format-on-save and ESLint auto-fix-on-save;
 `pnpm check` is the backstop.
@@ -139,14 +149,14 @@ Formatting is not a code-review topic here. Turn on format-on-save and ESLint au
 `style`):
 
 ```text
-src/shared/components/ui/Badge.tsx
+src/shared/components/ui/badge.tsx
   2:15  error  Use Tailwind classes or globals.css, not inline styles  react/forbid-dom-props
 ```
 
-Styling goes through Tailwind classes, or through `globals.css` when it is genuinely global. An
-inline `style` bypasses the design tokens in `@theme`, cannot be overridden by any stylesheet
+An inline `style` bypasses the design tokens in `@theme`, cannot be overridden by any stylesheet
 (inline wins on specificity), is invisible to the Tailwind class sorter, and turns "change the
-spacing scale" into a grep.
+spacing scale" into a grep. The full convention — `cn()`, class grouping, tokens, shadcn — is in
+[styling.md](./styling.md).
 
 Two consequences worth knowing:
 

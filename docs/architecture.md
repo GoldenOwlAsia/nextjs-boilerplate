@@ -78,10 +78,12 @@ src/
 │       └── types.ts
 │
 ├── shared/                     # zero business knowledge
-│   ├── components/{ui,layout}/
+│   ├── components/
+│   │   ├── ui/                 # shadcn primitives (Button, ...)
+│   │   └── layout/             # Header, Sidebar, PageShell
 │   ├── hooks/
 │   ├── lib/                    # api.ts, api.server.ts, query-client.ts,
-│   │                           # search-params.ts, form.ts
+│   │                           # search-params.ts, form.ts, utils.ts (cn)
 │   ├── utils/
 │   ├── constants/              # site.ts
 │   ├── config/                 # env.ts, env.validate.ts
@@ -220,6 +222,7 @@ Current contents worth knowing:
 | `shared/lib/query-client.ts`  | `QueryClient` factory and defaults (server vs browser) |
 | `shared/lib/search-params.ts` | Generic list URL state (`page`, `limit`, `q`, `sort`)  |
 | `shared/lib/form.ts`          | Maps `ApiError.details` onto react-hook-form fields    |
+| `shared/lib/utils.ts`         | `cn()` — class merging via cnfast, see styling.md      |
 | `shared/constants/site.ts`    | Product name/description/URL used by metadata          |
 
 See [data-fetching.md](./data-fetching.md) for how these fit together.

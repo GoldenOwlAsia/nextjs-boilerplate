@@ -2,7 +2,9 @@
 
 import { useEffect } from 'react';
 
+import { Button } from '@/shared/components/ui/button';
 import { env } from '@/shared/config/env';
+import { cn } from '@/shared/lib/utils';
 
 /**
  * Route-level error boundary. Catches render errors in this segment and below,
@@ -25,24 +27,30 @@ export default function Error({
   }, [error]);
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+    <main
+      className={cn('flex flex-1 flex-col items-center justify-center', 'gap-4 p-8', 'text-center')}
+    >
       <h1 className="text-2xl font-semibold tracking-tight">Something went wrong</h1>
 
       {env.isProduction ? null : (
-        <pre className="max-w-xl overflow-x-auto rounded bg-black/[.06] p-4 text-left text-sm dark:bg-white/[.08]">
+        <pre
+          className={cn(
+            'max-w-xl overflow-x-auto',
+            'rounded-lg bg-muted p-4',
+            'text-left font-mono text-sm',
+          )}
+        >
           {error.message}
         </pre>
       )}
 
-      {error.digest ? <p className="text-sm opacity-60">Reference: {error.digest}</p> : null}
+      {error.digest ? (
+        <p className="text-sm text-muted-foreground">Reference: {error.digest}</p>
+      ) : null}
 
-      <button
-        type="button"
-        onClick={reset}
-        className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
-      >
+      <Button type="button" onClick={reset}>
         Try again
-      </button>
+      </Button>
     </main>
   );
 }
