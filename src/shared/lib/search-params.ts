@@ -1,6 +1,6 @@
 import { createLoader, parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs/server';
 
-import { type SortOrder } from '@/types/pagination';
+import { type SortOrder } from '@/shared/types/pagination';
 
 const SORT_ORDERS = ['asc', 'desc'] as const satisfies readonly SortOrder[];
 

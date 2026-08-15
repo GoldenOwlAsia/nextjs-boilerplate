@@ -1,8 +1,18 @@
-import { QueryClient, defaultShouldDehydrateQuery, isServer } from '@tanstack/react-query';
+import { defaultShouldDehydrateQuery, isServer, QueryClient } from '@tanstack/react-query';
 
 import { ApiError } from '@/shared/lib/api';
 
 const MAX_RETRIES = 2;
+
+/**
+ * Exported so the policy can be unit-tested: retrying a 4xx just produces the
+ * same error more slowly, while network and 5xx failures are often transient.
+ */
+export const shouldRetryQuery = (failureCount: number, error: unknown): boolean => {
+  if (error instanceof ApiError && error.isClientError) return false;
+
+  return failureCount < MAX_RETRIES;
+};
 
 const makeQueryClient = (): QueryClient =>
   new QueryClient({
@@ -13,11 +23,7 @@ const makeQueryClient = (): QueryClient =>
         staleTime: 60_000,
         gcTime: 5 * 60_000,
         refetchOnWindowFocus: false,
-        retry: (failureCount, error) => {
-          if (error instanceof ApiError && error.isClientError) return false;
-
-          return failureCount < MAX_RETRIES;
-        },
+        retry: shouldRetryQuery,
       },
       mutations: {
         retry: false,

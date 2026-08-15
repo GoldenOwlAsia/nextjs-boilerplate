@@ -1,7 +1,7 @@
 import axios, { type AxiosError, type AxiosInstance } from 'axios';
 
 import { env } from '@/shared/config/env';
-import { type ApiErrorPayload } from '@/types/api';
+import { type ApiErrorPayload } from '@/shared/types/api';
 
 /**
  * Every failure that leaves this module is an `ApiError`, so callers — query
@@ -55,9 +55,9 @@ const toApiError = (error: AxiosError<ApiErrorPayload>): ApiError => {
   });
 };
 
-export const createApiClient = (): AxiosInstance => {
+export const createApiClient = (baseURL: string = env.apiBaseUrl): AxiosInstance => {
   const client = axios.create({
-    baseURL: env.apiBaseUrl,
+    baseURL,
     timeout: 15_000,
     headers: { 'Content-Type': 'application/json' },
     withCredentials: true,

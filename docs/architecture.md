@@ -17,13 +17,12 @@ Dependencies point one way. Never sideways, never backwards.
 
 Everything else in this document is a consequence of that rule.
 
-| Layer       | Owns                                         | Answers                                           |
-| ----------- | -------------------------------------------- | ------------------------------------------------- |
-| `app/`      | URLs, layouts, metadata, composition         | "What does this route render?"                    |
-| `features/` | User-facing workflows across several domains | "What can the user accomplish?"                   |
-| `modules/`  | One isolated business domain                 | "What business concepts does the system have?"    |
-| `shared/`   | Generic infrastructure and UI                | "What would still make sense in another product?" |
-| `types/`    | Cross-domain transport types                 | —                                                 |
+| Layer       | Owns                                              | Answers                                           |
+| ----------- | ------------------------------------------------- | ------------------------------------------------- |
+| `app/`      | URLs, layouts, metadata, composition              | "What does this route render?"                    |
+| `features/` | User-facing workflows across several domains      | "What can the user accomplish?"                   |
+| `modules/`  | One isolated business domain                      | "What business concepts does the system have?"    |
+| `shared/`   | Generic infrastructure and UI, incl. shared types | "What would still make sense in another product?" |
 
 The rule is enforced by ESLint (`import/no-restricted-paths`), not by discipline. A violation fails
 `pnpm lint`, not code review.
@@ -42,10 +41,18 @@ it is nearly impossible to make later.
 
 ```text
 src/
+├── instrumentation.ts          # server boot hook — validates env, wires tracing
+│
 ├── app/                        # routing only — no business logic
 │   ├── layout.tsx
 │   ├── providers.tsx           # the single client boundary at the root
+│   ├── error.tsx               # route error boundary
+│   ├── global-error.tsx        # root-layout error boundary
+│   ├── not-found.tsx
 │   ├── globals.css
+│   ├── api/
+│   │   ├── health/route.ts     # liveness probe
+│   │   └── [...path]/route.ts  # BFF proxy to the backend
 │   ├── (public)/page.tsx
 │   └── (dashboard)/
 │
@@ -73,16 +80,24 @@ src/
 ├── shared/                     # zero business knowledge
 │   ├── components/{ui,layout}/
 │   ├── hooks/
-│   ├── lib/                    # api.ts, query-client.ts, search-params.ts
+│   ├── lib/                    # api.ts, api.server.ts, query-client.ts,
+│   │                           # search-params.ts, form.ts
 │   ├── utils/
-│   ├── constants/
-│   └── config/                 # env.ts
+│   ├── constants/              # site.ts
+│   ├── config/                 # env.ts, env.validate.ts
+│   └── types/                  # api.ts, pagination.ts, env.d.ts
 │
-├── types/                      # api.ts, pagination.ts, env.d.ts
-├── styles/
-├── tests/
-└── e2e/
+tests/                          # unit tests, mirroring the src/ tree
+├── setup.ts
+├── app/
+└── shared/
+e2e/                            # Playwright specs
 ```
+
+`src/` is production code only — **no test files live there**. `tests/` mirrors the `src/` tree
+(`tests/shared/lib/api.test.ts` covers `src/shared/lib/api.ts`), so the path tells you what a spec
+covers, and shipping code is never interleaved with things that never ship. `e2e/` is Playwright's,
+at the repo root by convention.
 
 Organize by domain, not by file kind. A top-level `components/` or `services/` folder for the whole
 app looks tidy on day one and tells you nothing on day ninety: you can no longer see what the system
@@ -92,9 +107,26 @@ does by listing a directory, and every change touches five folders.
 
 ## 3. `app/` — routing, and nothing else
 
-A `page.tsx` should read like a table of contents:
+A `page.tsx` should read like a table of contents. It starts the data and hands it to a component —
+which of the two shapes below you use depends on who owns the data afterwards
+([data-fetching.md](./data-fetching.md)):
 
 ```tsx
+// Server-driven data: start the requests, don't await, let them stream.
+export default function DashboardPage() {
+  const userPromise = getCurrentUser();
+  const workspacePromise = getWorkspace();
+
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardScreen userPromise={userPromise} workspacePromise={workspacePromise} />
+    </Suspense>
+  );
+}
+```
+
+```tsx
+// Client-managed data: prefetch into the query cache instead.
 export default async function TripDetailPage({ params }: PageProps<'/trips/[id]'>) {
   const { id } = await params;
 
@@ -107,7 +139,7 @@ export default async function TripDetailPage({ params }: PageProps<'/trips/[id]'
 ```
 
 What belongs here: route params, `generateMetadata()`, `loading.tsx`, `error.tsx`, `not-found.tsx`,
-auth redirects, and triggering hydration.
+auth redirects, and kicking off data — as promises or as a prefetch.
 
 What does not: data shaping, business rules, form logic, anything you would want to unit-test.
 Pages are the hardest place in the app to test and the easiest to duplicate — keep them thin.
@@ -184,8 +216,11 @@ Current contents worth knowing:
 | ----------------------------- | ------------------------------------------------------ |
 | `shared/config/env.ts`        | The only place that reads `process.env`                |
 | `shared/lib/api.ts`           | axios instance + `ApiError`; the transport boundary    |
+| `shared/lib/api.server.ts`    | Server client: forwards cookies, absolute base URL     |
 | `shared/lib/query-client.ts`  | `QueryClient` factory and defaults (server vs browser) |
 | `shared/lib/search-params.ts` | Generic list URL state (`page`, `limit`, `q`, `sort`)  |
+| `shared/lib/form.ts`          | Maps `ApiError.details` onto react-hook-form fields    |
+| `shared/constants/site.ts`    | Product name/description/URL used by metadata          |
 
 See [data-fetching.md](./data-fetching.md) for how these fit together.
 
@@ -194,13 +229,16 @@ See [data-fetching.md](./data-fetching.md) for how these fit together.
 ## 7. Types
 
 ```text
-Cross-domain / transport   → src/types/            (ApiResponse, Paginated, env.d.ts)
+Cross-domain / transport   → src/shared/types/            (ApiResponse, Paginated, env.d.ts)
 Domain concept             → modules/<domain>/types.ts
 Screen/workflow shape      → features/<feature>/types.ts
 Component props            → next to the component
 ```
 
-Types follow the same dependency arrow as code: `src/types/` may not import from a business layer.
+Cross-domain types live under `shared/` because that is exactly what they are: code owned by no
+business domain, usable by any of them. They inherit the `shared/` rule automatically — a type in
+`shared/types/` may not reference a module or feature, and ESLint enforces it through the same zone.
+If a type needs `Trip`, it is not a shared type.
 
 One global `types.ts` for the whole app is an anti-pattern — it becomes a dumping ground nobody dares
 to delete from, and it couples every domain to every other domain through a single import.
@@ -213,15 +251,20 @@ Server by default. `'use client'` is a boundary, not a file annotation: everythi
 ships to the browser too.
 
 ```text
-page.tsx                    Server  — fetches, prefetches, composes
-└── TripSummary             Server  — pure render
-└── BookingWizard           Client  — useState, event handlers
+page.tsx                    Server  — starts requests, composes
+└── TripSummary             Server  — awaits its own data, pure render
+└── BookingWizard           Client  — useState, event handlers, use(promise)
     └── DatePicker          Client  (inherited)
 ```
 
 Push the directive to the smallest component that needs interactivity. The common failure is a
 `'use client'` at the top of a screen component because one button needs `onClick` — that sends the
 entire subtree, and its dependencies, to the client for nothing.
+
+`use(promise)` is a Client Component feature, so the same rule applies to it: pass the promise as
+deep as it goes and unwrap it at the leaf, rather than promoting a whole screen to the client to read
+one value. A Server Component that renders its own data does not need a promise prop at all — it can
+just `await`.
 
 `app/providers.tsx` is the one deliberate exception: it wraps the whole tree because context
 providers must be client-side. Keep it to providers only.
@@ -237,10 +280,12 @@ providers must be client-side. Keep it to providers only.
 | A screen combining 2+ domains         | `features/<feature>/`                                                         |
 | A screen for exactly one domain       | `modules/<domain>/components/` — no feature needed                            |
 | A generic Button/Input/hook/formatter | `shared/`                                                                     |
-| A type used by 2+ domains             | `src/types/`                                                                  |
+| A type used by 2+ domains             | `src/shared/types/`                                                           |
 | Logic two modules both need           | A new module (business) or `shared/` (generic)                                |
 | Logic two features both need          | A module                                                                      |
 | URL state for a list screen           | `features/<feature>/search-params.ts`, built on `shared/lib/search-params.ts` |
+| Initial, read-once data for a route   | Promise props + `use()` — no query needed ([why](./data-fetching.md))         |
+| Data the client refetches or mutates  | `modules/<domain>/services/*.query.ts` + `hydrate/`                           |
 | A one-off helper used in one file     | That file. Don't pre-abstract.                                                |
 
 When two answers look equally right, choose the lower layer only if it is genuinely generic;
@@ -255,8 +300,15 @@ business-specific "utility" out of `shared/` is not.
 **resolved file paths**, so `@/modules/x` and `../../modules/x` are both caught.
 
 Zones for module/feature isolation are generated by reading `src/modules` and `src/features` at
-config load time — adding `modules/payment` automatically forbids every other module from being
-imported inside it, with no config change.
+config load time, so adding `modules/payment` forbids every other module from being imported inside
+it without editing any config. Two consequences worth knowing:
+
+- **`import/no-unresolved` is part of the mechanism, not a nicety.** `no-restricted-paths` silently
+  skips imports the resolver can't resolve — without the companion rule, a broken alias would
+  disable every boundary while lint stayed green. Don't remove one without the other.
+- **The zone list is built when ESLint loads its config.** CI is always correct (fresh process), but
+  your editor's ESLint server keeps the old list until it restarts — a module folder created five
+  minutes ago is unprotected in-editor until then.
 
 ```text
 src/shared/lib/format.ts

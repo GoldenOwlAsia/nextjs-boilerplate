@@ -10,7 +10,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Project rules
 
-Package manager is **pnpm**. Run `pnpm check` (typecheck + lint + format) before declaring work done.
+Package manager is **pnpm**, Node **22** (`.nvmrc` — the unit suite does not run on Node 20). Run
+`pnpm check` (typecheck + lint + format + unit tests) before declaring work done; `pnpm test:e2e` when
+you touched routing or a rendered page.
+
+Tests **never** go in `src/`. Unit tests live in `tests/`, mirroring the source tree
+(`tests/shared/lib/api.test.ts` covers `src/shared/lib/api.ts`), with explicit imports from `vitest`
+(no globals); Playwright specs in `e2e/`. Env vars are declared in `src/shared/types/env.d.ts`, read
+via `@/shared/config/env`, and validated at boot in `@/shared/config/env.validate`.
 
 ## Architecture — read [docs/architecture.md](./docs/architecture.md) before adding files
 
@@ -27,16 +34,33 @@ app → features → modules → shared
   imports another module.**
 - `src/features/<feature>/` — a user-facing workflow composing several modules. Never duplicate a
   domain here; never import another feature.
-- `src/shared/` — generic UI/hooks/lib/utils only, zero business logic, imports nothing from the
-  business layers.
-- `src/types/` — types shared across domains only; domain types stay in their own layer.
+- `src/shared/` — generic UI/hooks/lib/utils/types only, zero business logic, imports nothing from
+  the business layers.
+- `src/shared/types/` — cross-domain types only (there is no top-level `src/types/`); domain types
+  stay in `modules/<domain>/types.ts` or `features/<feature>/types.ts`.
 
 Cross-layer imports use the `@/*` alias; relative imports stay inside the same module/feature.
 
 ## Data layer — read [docs/data-fetching.md](./docs/data-fetching.md)
 
+**Pick the path before writing the fetch.** Not every call belongs in TanStack Query:
+
+- Initial, read-once, server-driven data → start the promises in the Server Component **without
+  `await`**, pass them as props, unwrap with `use()` in the smallest Client Component, wrap in
+  `<Suspense>`. Sequential `await`s for independent requests are a waterfall bug.
+- Data the client refetches, invalidates after a mutation, paginates or filters → TanStack Query
+  (+ `HydrationBoundary` when the server prefetches it).
+- One owner per piece of data — never both paths for the same field.
+
 - HTTP goes through `@/shared/lib/api` (axios). It throws `ApiError`; nothing above it may catch
   axios errors. `process.env` is read only in `@/shared/config/env`.
+- Server-side calls use `getServerApi()` from `@/shared/lib/api.server` (forwards cookies, absolute
+  base URL). `*.api.ts` fetchers take an optional client param; wrap server fetchers in React
+  `cache()` — axios is not deduped like `fetch`.
+- The browser reaches the backend through `app/api/[...path]` (BFF proxy); the server calls it
+  directly. Don't point `API_BASE_URL` at this app.
+- Forms: zod schema in the owning layer's `validators/`, `zodResolver` + react-hook-form, and
+  `applyApiErrorToForm` from `@/shared/lib/form` for server-side field errors.
 - Per domain: `services/<domain>.api.ts` (transport, no React) → `services/<domain>.query.ts`
   (`qk<Domain>` keys + `queryOptions` + mutation hooks) → `hydrate/<domain>.hydrate.ts` (server
   prefetch + `dehydrate`). Export `queryOptions()` objects, not just hooks, so server and client
@@ -49,6 +73,8 @@ Cross-layer imports use the `@/*` alias; relative imports stay inside the same m
 
 ## Code style
 
+- **No inline styles, ever.** No `style={{...}}` on DOM elements or components — ESLint rejects it.
+  Use Tailwind classes, or `globals.css` for genuinely global rules.
 - Server Components by default; add `'use client'` only on the smallest interactive component.
 - TypeScript is strict (see [docs/tooling.md](./docs/tooling.md)): no `any`, `import type` for
   type-only imports, index access is `T | undefined`, optional props that accept undefined must say
