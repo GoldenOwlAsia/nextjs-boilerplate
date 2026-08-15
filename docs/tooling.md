@@ -1,86 +1,90 @@
-# Tooling: TypeScript, ESLint, Prettier
+# Tooling
+
+TypeScript · ESLint · Prettier. The intent: make the machine catch what code review shouldn't have
+to, and keep formatting out of diffs entirely.
 
 ## Scripts
 
-| Command             | What it does                                               |
-| ------------------- | ---------------------------------------------------------- |
-| `pnpm dev`          | Dev server (Turbopack)                                     |
-| `pnpm build`        | Production build                                           |
-| `pnpm start`        | Serve the production build                                 |
-| `pnpm typecheck`    | `tsc --noEmit`                                             |
-| `pnpm lint`         | ESLint                                                     |
-| `pnpm lint:fix`     | ESLint with `--fix`                                        |
-| `pnpm format`       | Prettier write                                             |
-| `pnpm format:check` | Prettier check (CI)                                        |
-| `pnpm check`        | `typecheck` + `lint` + `format:check` — run before pushing |
+| Command             | What it does                                             |
+| ------------------- | -------------------------------------------------------- |
+| `pnpm dev`          | Dev server (Turbopack)                                   |
+| `pnpm build`        | Production build                                         |
+| `pnpm start`        | Serve the production build                               |
+| `pnpm typecheck`    | `tsc --noEmit`                                           |
+| `pnpm lint`         | ESLint                                                   |
+| `pnpm lint:fix`     | ESLint with `--fix`                                      |
+| `pnpm format`       | Prettier write                                           |
+| `pnpm format:check` | Prettier check                                           |
+| `pnpm check`        | All three — this is what CI runs, run it before you push |
 
-> `pnpm typecheck` reads generated route types from `.next/types`. After moving or adding routes,
-> run `pnpm exec next typegen` (or `pnpm build`) if the type checker complains about a stale
-> `validator.ts`.
+> `pnpm typecheck` reads generated route types from `.next/types`. After moving or renaming a route,
+> run `pnpm exec next typegen` (or `pnpm build`) if `tsc` complains about a stale `validator.ts`.
 
 ## TypeScript
 
-`strict: true` plus the flags below (`tsconfig.json`):
+`strict: true` is the floor, not the ceiling. The extra flags below each close a class of bug that
+`strict` alone lets through.
 
-| Flag                                    | Effect                                                       |
-| --------------------------------------- | ------------------------------------------------------------ |
-| `noUncheckedIndexedAccess`              | `arr[i]` / `obj[key]` are `T \| undefined` — handle the miss |
-| `exactOptionalPropertyTypes`            | `{ a?: string }` rejects an explicit `a: undefined`          |
-| `noPropertyAccessFromIndexSignature`    | Index-signature keys must use `obj['key']`                   |
-| `noImplicitOverride`                    | `override` keyword required                                  |
-| `noImplicitReturns`                     | All code paths must return                                   |
-| `noFallthroughCasesInSwitch`            | No accidental `case` fallthrough                             |
-| `noUnusedLocals` / `noUnusedParameters` | Dead bindings are errors (prefix with `_` to keep one)       |
-| `verbatimModuleSyntax`                  | Type-only imports must be written `import type`              |
-| `forceConsistentCasingInFileNames`      | Case-correct imports (macOS ↔ Linux CI)                      |
+| Flag                                    | What it catches                                        |
+| --------------------------------------- | ------------------------------------------------------ |
+| `noUncheckedIndexedAccess`              | `arr[0]` is `T \| undefined` — the empty-array crash   |
+| `exactOptionalPropertyTypes`            | `{ a: undefined }` silently overwriting a default      |
+| `noPropertyAccessFromIndexSignature`    | Typos on index-signature keys (`process.env.API_URLL`) |
+| `noImplicitOverride`                    | A base-class rename silently orphaning an override     |
+| `noImplicitReturns`                     | A branch that forgets to return                        |
+| `noFallthroughCasesInSwitch`            | Accidental `case` fallthrough                          |
+| `noUnusedLocals` / `noUnusedParameters` | Dead code (prefix with `_` when a parameter must stay) |
+| `verbatimModuleSyntax`                  | Type-only imports pulling real modules into the bundle |
+| `forceConsistentCasingInFileNames`      | Works on macOS, breaks on Linux CI                     |
 
-Working with these:
+The two you will actually notice:
 
 ```ts
-// noUncheckedIndexedAccess
+// noUncheckedIndexedAccess — narrow, don't assert
 const first = items[0];
 if (!first) return null;
 
-// verbatimModuleSyntax + consistent-type-imports (ESLint autofixes this)
-import { type Trip, getTripById } from '@/modules/trip/services/trip.api';
-
-// exactOptionalPropertyTypes — omit the key instead of passing undefined
-const props = value === undefined ? {} : { value };
+// exactOptionalPropertyTypes — an optional property is not the same as "may be undefined".
+// If callers pass a possibly-undefined value, say so in the type:
+type Params = { code?: string | undefined };
 ```
 
-If `exactOptionalPropertyTypes` fights a third-party prop type, widen your own type to
-`prop?: T | undefined` rather than turning the flag off.
+That second one is why `ApiError`'s constructor in `shared/lib/api.ts` spells out `| undefined`.
+When a third-party prop type fights the flag, widen your own type — don't turn the flag off.
+
+Env vars are declared in `src/types/env.d.ts`. Declaring them explicitly is what lets
+`process.env.NEXT_PUBLIC_*` typecheck under `noPropertyAccessFromIndexSignature`, and Next.js can
+only inline the dot form — bracket access would ship an undefined value to the browser. Read them
+through `shared/config/env.ts`, never directly.
 
 ## ESLint
 
-`eslint.config.mjs` (flat config) layers:
+`eslint.config.mjs`, flat config, four layers in order:
 
-1. `eslint-config-next/core-web-vitals` + `/typescript` — Next.js, React, hooks, a11y, import.
-2. **`project/typescript`** — `consistent-type-imports`, `no-explicit-any`, `no-unused-vars` with
-   `^_` escape hatch.
-3. **`project/architecture-boundaries`** — `import/no-restricted-paths` enforcing
-   `app → features → modules → shared`. See [architecture.md](./architecture.md#8-import-dependency-rules).
-4. `eslint-config-prettier` — last, so formatting rules never fight Prettier.
+1. `eslint-config-next/core-web-vitals` + `/typescript` — Next, React, hooks, a11y, import.
+2. `project/typescript` — `consistent-type-imports`, `no-explicit-any`, `no-unused-vars` with a `^_`
+   escape hatch.
+3. `project/architecture-boundaries` — the layer rules from
+   [architecture.md](./architecture.md#1-the-one-rule).
+4. `eslint-config-prettier` — **last**, so no stylistic rule can fight the formatter.
 
-The boundary zones for module/feature isolation are read from the folders in `src/modules` and
-`src/features` at config load time, so adding `modules/payment` automatically forbids the rest of
-`src/modules` from being imported inside it — no config edit needed.
-
-Example failure:
+The boundary rule is `import/no-restricted-paths`, which matches on _resolved file paths_. That
+matters: a path-string rule like `no-restricted-imports` only sees the literal specifier, so
+`../../modules/x` slips past it while `@/modules/x` is blocked. Zones are also generated by reading
+`src/modules` and `src/features` from disk at config load, so a new domain is isolated the moment the
+folder exists — no config edit, nothing to forget.
 
 ```text
-src/shared/lib/http.ts
-  1:19  error  Unexpected path "@/modules/auth/services/auth.api" imported in restricted zone.
-               shared/ must stay business-agnostic: it cannot import app/, features/ or modules/
+src/shared/lib/format.ts
+  3:1  error  Unexpected path "@/modules/booking/types" imported in restricted zone.
+              shared/ must stay business-agnostic: it cannot import app/, features/ or modules/
 ```
 
 ## Prettier
 
-`.prettierrc.json`: single quotes, semicolons, trailing commas, 100-column width, LF endings, plus
-`prettier-plugin-tailwindcss` to keep Tailwind class order canonical.
+`.prettierrc.json`: single quotes, semicolons, trailing commas, 100 columns, LF, plus
+`prettier-plugin-tailwindcss` so Tailwind class order is canonical and class-list diffs stay
+reviewable.
 
-ESLint does not format — Prettier owns formatting; `eslint-config-prettier` disables every stylistic
-rule that would overlap.
-
-Editor setup: enable "format on save" with the Prettier extension, and ESLint auto-fix on save for
-import-type fixes.
+Formatting is not a code-review topic here. Turn on format-on-save and ESLint auto-fix-on-save;
+`pnpm check` is the backstop.

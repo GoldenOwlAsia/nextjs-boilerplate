@@ -1,17 +1,18 @@
 # nextjs-boilerplate
 
-Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS v4, organized with a
-**feature-based architecture**.
+Next.js 16 (App Router) · React 19 · TypeScript strict · Tailwind v4 · TanStack Query · axios · nuqs.
+
+Feature-based architecture with layer boundaries enforced by ESLint.
 
 ## Getting started
 
 ```bash
 pnpm install
+cp .env.example .env.local
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The home page lives at
-`src/app/(public)/page.tsx`.
+Open [http://localhost:3000](http://localhost:3000). The home page is `src/app/(public)/page.tsx`.
 
 ## Scripts
 
@@ -24,25 +25,22 @@ pnpm typecheck      # tsc --noEmit
 pnpm lint           # eslint
 pnpm lint:fix       # eslint --fix
 pnpm format         # prettier --write .
-pnpm format:check   # prettier --check .
-pnpm check          # typecheck + lint + format:check
+pnpm check          # typecheck + lint + format:check  ← run before pushing
 ```
 
 ## Structure
 
 ```text
 src/
-├── app/        routing, layouts, page composition
+├── app/        routing, layouts, providers, page composition
 ├── features/   user-facing workflows (compose multiple modules)
 ├── modules/    isolated business domains
-├── shared/     generic UI, hooks, lib, utils, constants, config
-├── types/      global shared types
-├── styles/
-├── tests/
-└── e2e/
+├── shared/     generic UI, hooks, lib (api, query-client, search-params), config
+├── types/      cross-domain types
+├── styles/  tests/  e2e/
 ```
 
-Dependency direction — enforced by ESLint:
+Dependencies point one way, and ESLint enforces it:
 
 ```text
 app → features → modules → shared
@@ -50,6 +48,8 @@ app → features → modules → shared
 
 ## Docs
 
-- [Architecture & project structure](./docs/architecture.md) — layers, module vs feature, TanStack
-  Query layout, import rules, Server vs Client Components.
-- [Tooling](./docs/tooling.md) — TypeScript strict flags, ESLint boundaries, Prettier.
+| Doc                                      | Read it when                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------- |
+| [Architecture](./docs/architecture.md)   | Deciding where new code goes; module vs feature; Server vs Client |
+| [Data fetching](./docs/data-fetching.md) | Writing API calls, queries, mutations, SSR hydration, URL state   |
+| [Tooling](./docs/tooling.md)             | TypeScript strict flags, ESLint boundaries, Prettier              |

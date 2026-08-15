@@ -33,9 +33,24 @@ app → features → modules → shared
 
 Cross-layer imports use the `@/*` alias; relative imports stay inside the same module/feature.
 
+## Data layer — read [docs/data-fetching.md](./docs/data-fetching.md)
+
+- HTTP goes through `@/shared/lib/api` (axios). It throws `ApiError`; nothing above it may catch
+  axios errors. `process.env` is read only in `@/shared/config/env`.
+- Per domain: `services/<domain>.api.ts` (transport, no React) → `services/<domain>.query.ts`
+  (`qk<Domain>` keys + `queryOptions` + mutation hooks) → `hydrate/<domain>.hydrate.ts` (server
+  prefetch + `dehydrate`). Export `queryOptions()` objects, not just hooks, so server and client
+  share one definition.
+- Query keys are built only in `*.query.ts`, never inline in a component.
+- Filters, pagination, sort, tabs → URL via nuqs (`useQueryStates` + `createLoader`), and the parsed
+  values are the query key. Not `useState`.
+- `getQueryClient()` from `@/shared/lib/query-client`; never hoist a `QueryClient` to a module
+  constant on the server.
+
 ## Code style
 
 - Server Components by default; add `'use client'` only on the smallest interactive component.
 - TypeScript is strict (see [docs/tooling.md](./docs/tooling.md)): no `any`, `import type` for
-  type-only imports, index access is `T | undefined`.
+  type-only imports, index access is `T | undefined`, optional props that accept undefined must say
+  `| undefined`.
 - Prettier owns formatting — don't hand-format; run `pnpm format`.

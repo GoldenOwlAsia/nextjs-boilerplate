@@ -1,18 +1,19 @@
 /**
- * Envelope returned by the backend for every endpoint.
+ * Transport-level contracts shared by every domain.
  *
- * Keep this file free of domain-specific shapes — those live in
- * `modules/<domain>/types.ts` or `features/<feature>/types.ts`.
+ * Domain payloads never live here — they belong to `modules/<domain>/types.ts`.
  */
+
+/** Envelope the backend wraps every successful response in. */
 export type ApiResponse<T> = {
   data: T;
   message?: string;
-  error?: string;
 };
 
-export type ApiError = {
-  status: number;
-  message: string;
+/** Error body the backend returns on 4xx/5xx. */
+export type ApiErrorPayload = {
+  message?: string;
   code?: string;
+  /** Field-level validation errors, keyed by field name. */
   details?: Record<string, string[]>;
 };
