@@ -22,7 +22,7 @@ to, and keep formatting out of diffs entirely.
 
 ## Node version
 
-Pinned in `.nvmrc` (22.19.0) and `engines` (`>=20.9.0`); CI reads `.nvmrc`. Use `nvm use` after
+Pinned in `.nvmrc` (22.23.4, the October 2026 security release) and `engines` (`>=22.23.4`); CI reads `.nvmrc`. Use `nvm use` after
 cloning.
 
 Node 20 reached end of life in April 2026, and it is not merely a policy matter here: jsdom 30
