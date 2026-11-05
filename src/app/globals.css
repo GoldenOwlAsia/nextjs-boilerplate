@@ -40,6 +40,10 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+
+  /* Modal scrim. Deliberately not inverted in dark mode -- it dims whatever is
+     behind the dialog, and that is darker to begin with. */
+  --overlay: oklch(0 0 0 / 50%);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -90,6 +94,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

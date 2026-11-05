@@ -23,7 +23,8 @@ Two jobs, and the second is the important one:
 
 That is what makes a component overridable. `<Button className="px-8" />` actually gets `px-8`
 instead of fighting the variant's `px-4` — no `!important`, no specificity tricks, no
-`className && styles.override`.
+`className && styles.override`. (That holds for classes we own. Third-party CSS we don't control is
+the one exception — see §5.)
 
 String concatenation (`` `base ${maybe}` ``) gives you neither. It is not a shortcut here, it is a
 different and worse behaviour.
@@ -177,6 +178,15 @@ Rules that follow from that:
   `shared/` (ESLint enforces it). A `TripCard` is not a UI primitive; it belongs to `modules/trip`.
 - Variants belong in `cva`, not in caller-side conditionals. If three screens each write
   `cn(buttonVariants(), 'bg-warning')`, that is a missing variant.
+- A component with a `cva` gives its variant props an **explicit default in the destructure** and
+  echoes them as `data-variant` / `data-size`. Without the default the attribute renders as
+  `undefined` on the initial variant, which quietly breaks both `[data-variant=…]` selectors and
+  test/E2E queries. `Button`, `Badge`, `Alert` and `TabsList` all follow this; after a
+  `pnpm ui add`, check whatever new component ships a `cva` and bring it in line.
+- Some third-party components defend their defaults with a two-class selector — sonner's are on
+  `[data-sonner-toaster][data-sonner-theme=light]`. A single-class utility loses that on
+  specificity. Stock shadcn reaches for an inline `style`, which rule 1 forbids; use Tailwind's
+  trailing `!` instead (see `shared/components/ui/sonner.tsx`) and leave a comment saying why.
 - Prefer `asChild` over duplicating styles onto a `<Link>` or `<a>`:
 
   ```tsx
