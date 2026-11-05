@@ -14,6 +14,10 @@ Package manager is **pnpm**, Node **22** (`.nvmrc` — the unit suite does not r
 `pnpm check` (typecheck + lint + format + unit tests) before declaring work done; `pnpm test:e2e` when
 you touched routing or a rendered page.
 
+Patterns to follow: [docs/design-patterns.md](./docs/design-patterns.md). Branches, commits, PRs and
+what an agent may do in git: [docs/git-flow.md](./docs/git-flow.md) — do not commit, push or open a PR
+unless the user asks.
+
 Tests **never** go in `src/`. Unit tests live in `tests/`, mirroring the source tree
 (`tests/shared/lib/api.test.ts` covers `src/shared/lib/api.ts`), with explicit imports from `vitest`
 (no globals); Playwright specs in `e2e/`. Env vars are declared in `src/shared/types/env.d.ts`, read

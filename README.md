@@ -113,9 +113,11 @@ app → features → modules → shared
 
 ## Docs
 
-| Doc                                      | Read it when                                                                                            |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| [Architecture](./docs/architecture.md)   | Deciding where new code goes; module vs feature; Server vs Client                                       |
-| [Data fetching](./docs/data-fetching.md) | Choosing between promise props + `use()` and TanStack Query; API calls, mutations, hydration, URL state |
-| [Styling](./docs/styling.md)             | Writing any UI: `cn()`, class grouping, design tokens, shadcn/ui                                        |
-| [Tooling](./docs/tooling.md)             | TypeScript strict flags, ESLint boundaries, Prettier, testing, CI, env validation                       |
+| Doc                                          | Read it when                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [Architecture](./docs/architecture.md)       | Deciding where new code goes; module vs feature; Server vs Client                                       |
+| [Data fetching](./docs/data-fetching.md)     | Choosing between promise props + `use()` and TanStack Query; API calls, mutations, hydration, URL state |
+| [Styling](./docs/styling.md)                 | Writing any UI: `cn()`, class grouping, design tokens, shadcn/ui                                        |
+| [Tooling](./docs/tooling.md)                 | TypeScript strict flags, ESLint boundaries, Prettier, testing, CI, env validation                       |
+| [Design patterns](./docs/design-patterns.md) | Patterns the code must follow, anti-patterns, recipe for adding a domain                                |
+| [Git flow](./docs/git-flow.md)               | Branch and commit naming, PR rules, CI gates, rules for AI agents                                       |
