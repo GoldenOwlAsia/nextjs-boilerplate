@@ -1,3 +1,7 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# next bundles postcss -> source-map-js <1.2.2 (event-loop DoS, GHSA-68fv-2mgg-jv7q); drop once next ships a fix.
+overrides:
+  source-map-js: '>=1.2.2'

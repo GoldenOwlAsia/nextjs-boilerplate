@@ -27,6 +27,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Fails the build on any known vulnerability in production dependencies.
+      - run: pnpm audit:prod
+
       - run: pnpm check
 
       - run: pnpm build
